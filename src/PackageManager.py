@@ -1,16 +1,15 @@
 from InputParser import ValidCommand
-
 from InputParser import InputParser
 from collections import defaultdict
 
-from src.PackageInfo import PackageInfo
+from PackageInfo import PackageInfo
 
 
 class PackageManager(object):
     def __init__(self):
         self._input_parser = InputParser()
         self._package_info = {}
-        self._dependent_map = defaultdict(list)
+        self._needed_by_map = defaultdict(list)
         self._depends_on_map = defaultdict(list)
         self._INVALID = "INVALID"
         self._installed_packages = []
@@ -18,7 +17,6 @@ class PackageManager(object):
     def start(self):
         while True:
             cmdl_input = input()
-
             if cmdl_input == ValidCommand.END.name:
                 break
             self._process_input(cmdl_input)
@@ -38,24 +36,35 @@ class PackageManager(object):
                 return self._process_list()
 
     def _process_depend(self, param):
+        for package in param:
+            self._package_info.setdefault((package, PackageInfo(package)))
         dependent = param[0]
         depends_on = param[1:]
         for package in depends_on:
-            if dependent not in self._dependent_map[package]:
-                self._dependent_map[package].append(dependent)
-                self._depends_on_map[dependent].append(package)
+            if dependent not in self._needed_by_map[package]:
+                self._package_info[package].needed_by.append(dependent)
+                self._package_info[dependent].depends_on.append(package)
                 if self._has_cycle():
-                    self._dependent_map[package].pop()
-                    self._depends_on_map[dependent].pop()
+                    self._package_info[package].needed_by.pop()
+                    self._package_info[dependent].depends_on.pop()
                     print("{} depends on {}, ignoring command".format(
                         package, dependent
                     ))
                     break
-                self._package_info.setdefault(package, PackageInfo(package))
-                self._package_info.setdefault(dependent, PackageInfo(dependent))
 
-    def _process_install(self, package):
-        pass
+    def _process_install(self, package, implictly_install=False):
+
+        if package not in self._package_info:
+            self._package_info.setdefault(package, PackageInfo(package))
+            self._package_info[package].implicitly_installed = implictly_install
+            self._installed_packages.append(package)
+            print("Installing {}".format(package))
+        elif package not in self._installed_packages:
+            for depends_on_package in self._package_info[package].depends_on:
+                self._process_install(depends_on_package, True)
+            self._package_info[package].implicitly_installed = implictly_install
+            self._installed_packages.append(package)
+            print("Installing {}".format(package))
 
     def _process_remove(self, package):
         pass
@@ -65,7 +74,24 @@ class PackageManager(object):
             print(package, '\n')
 
     def _has_cycle(self):
-        pass
+        status = {}
 
+        def check_cycle(p):
+            if p in status:
+                if status[p] == "visited":
+                    return False
+                if status[p] == "visiting":
+                    return True
+            status[p] = "visiting"
+            for depends_on_package in self._package_info[p].depends_on:
+                if check_cycle(depends_on_package):
+                    return True
+            status[p] = "visited"
+            return False
 
-print(ValidCommand.DEPEND.name)
+        for package in self._package_info:
+            if package not in status:
+                if check_cycle(package):
+                    return True
+
+        return False
