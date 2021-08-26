@@ -17,10 +17,10 @@ class InputParser(object):
                         return {cmd: args[0]}
                 if cmd == ValidCommand.DEPEND.name:
                     if len(args) >= 2:
-                        dependent = args[1]
-                        depends_on = args[2:]
+                        dependent = args[0]
+                        depends_on = args[1:]
                         if dependent not in depends_on:
-                            return {cmd: args[1:]}
+                            return {cmd: args}
         return None
 
 
@@ -30,6 +30,3 @@ class ValidCommand(Enum):
     REMOVE = 3
     LIST = 4
     END = 5
-
-
-print(set())

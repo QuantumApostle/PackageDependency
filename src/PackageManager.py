@@ -1,6 +1,5 @@
 from InputParser import ValidCommand
 from InputParser import InputParser
-from collections import defaultdict
 
 from PackageInfo import PackageInfo
 
@@ -9,9 +8,6 @@ class PackageManager(object):
     def __init__(self):
         self._input_parser = InputParser()
         self._package_info = {}
-        self._needed_by_map = defaultdict(list)
-        self._depends_on_map = defaultdict(list)
-        self._INVALID = "INVALID"
         self._installed_packages = []
 
     def start(self):
@@ -37,11 +33,11 @@ class PackageManager(object):
 
     def _process_depend(self, param):
         for package in param:
-            self._package_info.setdefault((package, PackageInfo(package)))
+            self._package_info.setdefault(package, PackageInfo())
         dependent = param[0]
         depends_on = param[1:]
         for package in depends_on:
-            if dependent not in self._needed_by_map[package]:
+            if dependent not in self._package_info[package].needed_by:
                 self._package_info[package].needed_by.append(dependent)
                 self._package_info[dependent].depends_on.append(package)
                 if self._has_cycle():
@@ -52,26 +48,45 @@ class PackageManager(object):
                     ))
                     break
 
-    def _process_install(self, package, implictly_install=False):
+    def _process_install(self, package, implicitly_install=False):
 
-        if package not in self._package_info:
-            self._package_info.setdefault(package, PackageInfo(package))
-            self._package_info[package].implicitly_installed = implictly_install
+        if package in self._installed_packages:
+            self._package_info[package].remove_mark = False
+            if not implicitly_install:
+                print("{} is already installed".format(package))
+        else:
+            if package not in self._package_info:
+                self._package_info.setdefault(package, PackageInfo())
+            else:
+                for p in self._package_info[package].depends_on:
+                    self._process_install(p, True)
+                self._package_info[package].implicitly_installed = implicitly_install
             self._installed_packages.append(package)
             print("Installing {}".format(package))
-        elif package not in self._installed_packages:
-            for depends_on_package in self._package_info[package].depends_on:
-                self._process_install(depends_on_package, True)
-            self._package_info[package].implicitly_installed = implictly_install
-            self._installed_packages.append(package)
-            print("Installing {}".format(package))
 
-    def _process_remove(self, package):
-        pass
+    def _process_remove(self, package, implicitly_remove=False):
+        if package not in self._installed_packages:
+            print("{} is not installed".format(package))
+        else:
+            self._package_info[package].remove_mark = True
+            is_still_needed = False
+            for p in self._package_info[package].needed_by:
+                if p in self._installed_packages:
+                    is_still_needed = True
+                    if not implicitly_remove:
+                        print("{} is still needed".format(package))
+                    break
+            if not is_still_needed:
+                idx = self._installed_packages.index(package)
+                self._installed_packages.pop(idx)
+                print("Removing {}".format(package))
+                for p in self._package_info[package].depends_on:
+                    if self._package_info[p].implicitly_installed:
+                        self._process_remove(p, True)
 
     def _process_list(self):
         for package in self._installed_packages:
-            print(package, '\n')
+            print(package)
 
     def _has_cycle(self):
         status = {}
