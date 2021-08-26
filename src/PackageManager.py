@@ -1,7 +1,7 @@
-from InputParser import ValidCommand
-from InputParser import InputParser
+from src.InputParser import ValidCommand
+from src.InputParser import InputParser
 
-from PackageInfo import PackageInfo
+from src.PackageInfo import PackageInfo
 
 
 class PackageManager(object):
